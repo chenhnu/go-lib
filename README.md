@@ -1,9 +1,9 @@
 # go-lib
 go dev libary 
 
-##ptdb
+## ptdb
 mysql redis .etc
-##ptcollection
+## ptcollection
 some collection like deque array .etc
-##ptlog
+## ptlog
 log tool
