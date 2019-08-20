@@ -1,7 +1,7 @@
 package ptdb
 
 import (
-	"GoStudy/ptlog"
+	"github.com/chenhnu/go-lib/ptlog"
 	"errors"
 	"github.com/gomodule/redigo/redis"
 	"strconv"
