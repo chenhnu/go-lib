@@ -1,20 +1,24 @@
 package ptdb
 
 import (
-	"github.com/chenhnu/go-lib/ptlog"
 	"errors"
-	"github.com/gomodule/redigo/redis"
 	"strconv"
+
+	"github.com/gomodule/redigo/redis"
+
+	//pt go lib
+	"github.com/chenhnu/go-lib/ptlog"
 )
 
-type RedisTool struct {
+type redisTool struct {
 	conn redis.Conn
 }
 
-func NewRedisTool(host string, port int, pwd string) *RedisTool {
-	rt := &RedisTool{}
+func NewRedisTool(host string, port int, pwd string) *redisTool {
+	rt := &redisTool{}
 	e := rt.initTool(host, port, pwd)
 	if e != nil {
+		_=rt.CloseTool()
 		ptlog.Error(e)
 	} else {
 		ptlog.Debug("redis connect success")
@@ -22,7 +26,7 @@ func NewRedisTool(host string, port int, pwd string) *RedisTool {
 	return rt
 }
 
-func (tool *RedisTool) initTool(host string, port int, pwd string) error {
+func (tool *redisTool) initTool(host string, port int, pwd string) error {
 	if !isHost(host) {
 		return errors.New("host illegal")
 	}
@@ -39,7 +43,6 @@ func (tool *RedisTool) initTool(host string, port int, pwd string) error {
 		if reply != "OK" {
 			return errors.New("password error")
 		}
-
 	}
 	reply, e := tool.doCmd(PING)
 	if e != nil {
@@ -53,19 +56,19 @@ func (tool *RedisTool) initTool(host string, port int, pwd string) error {
 
 //将do和send函数封装一层，后期可以以在此处选择要使用的连接（redis pool）
 //后期可以在此处添加连接中断的重新恢复（recovery connect）
-func (tool *RedisTool) doCmd(cmd string, args ...interface{}) (interface{}, error) {
+func (tool *redisTool) doCmd(cmd string, args ...interface{}) (interface{}, error) {
 	return tool.conn.Do(cmd, args...)
 }
 
 //Send()函数只是将命令写进buffer里，并不会执行，而Flush()就可以执行
 //可以在使用事务的时候使用，一个事务一次提交
-func (tool *RedisTool) sendCmd(cmd string, args ...interface{}) error {
+func (tool *redisTool) sendCmd(cmd string, args ...interface{}) error {
 	e := tool.conn.Send(cmd, args...)
 	e = tool.conn.Flush()
 	return e
 }
 
-func (tool *RedisTool) CloseTool() error {
+func (tool *redisTool) CloseTool() error {
 	e := tool.conn.Close()
 	if e != nil {
 		return e
@@ -73,7 +76,8 @@ func (tool *RedisTool) CloseTool() error {
 	ptlog.Debug("redis disconnect success")
 	return e
 }
-func (tool *RedisTool) Keys() []string {
+
+func (tool *redisTool) Keys() []string {
 	var keys []string
 	rp, e := tool.doCmd(KEYS, "*")
 	if e != nil {
@@ -88,12 +92,12 @@ func (tool *RedisTool) Keys() []string {
 	return keys
 }
 
-func (tool *RedisTool) delKeys(args ...interface{}) error {
+func (tool *redisTool) delKeys(args ...interface{}) error {
 	_, e := tool.doCmd(DEL, args...)
 	return e
 }
 
-func (tool *RedisTool) ExitKey(key string) bool {
+func (tool *redisTool) ExistsKey(key string) bool {
 	rp, e := tool.doCmd(EXISTS, key)
 	if e != nil {
 		ptlog.Error(e)
@@ -106,21 +110,22 @@ func (tool *RedisTool) ExitKey(key string) bool {
 }
 
 //敏感操作，会删除所有的缓存，建议隐藏
-func (tool *RedisTool) FlushAll() {
+func (tool *redisTool) FlushAll() {
 	_, e := tool.doCmd(FlushALL)
 	if e != nil {
 		ptlog.Error(e)
 	}
 }
 
-func (tool *RedisTool) SetExpire(key string, expire int) error {
+func (tool *redisTool) SetExpire(key string, expire int) error {
 	rp, e := tool.doCmd(EXPIRE, key, expire)
 	if rp == 1 {
 		return nil
 	}
 	return e
 }
-func (tool *RedisTool) SetString(key, str string, expire int) error {
+
+func (tool *redisTool) SetString(key, str string, expire int) error {
 	var e error
 	if expire > 0 {
 		_, e = tool.doCmd(SET, key, str, EX, expire)
@@ -129,7 +134,8 @@ func (tool *RedisTool) SetString(key, str string, expire int) error {
 	}
 	return e
 }
-func (tool *RedisTool) GetString(key string) string {
+
+func (tool *redisTool) GetString(key string) string {
 	rp, e := tool.doCmd(GET, key)
 	if e != nil {
 		ptlog.Error(e)
@@ -140,10 +146,12 @@ func (tool *RedisTool) GetString(key string) string {
 	}
 	return string(rp.([]uint8))
 }
-func (tool *RedisTool) DelString(key string) error {
+
+func (tool *redisTool) DelString(key string) error {
 	return tool.delKeys(key)
 }
-func (tool *RedisTool) SetMHash(key string, hashMap map[string]string) error {
+
+func (tool *redisTool) SetMHash(key string, hashMap map[string]string) error {
 	var args = make([]interface{}, 0, len(hashMap))
 	args = append(args, key)
 	for k, v := range hashMap {
@@ -153,7 +161,8 @@ func (tool *RedisTool) SetMHash(key string, hashMap map[string]string) error {
 	_, e := tool.doCmd(HashMSET, args...)
 	return e
 }
-func (tool *RedisTool) GetMHash(key string, field ...interface{}) map[string]string {
+
+func (tool *redisTool) GetMHash(key string, field ...interface{}) map[string]string {
 	res := make(map[string]string)
 	args := make([]interface{}, 0, len(field)+1)
 	args = append(args, key)
@@ -175,12 +184,13 @@ func (tool *RedisTool) GetMHash(key string, field ...interface{}) map[string]str
 	}
 	return res
 }
-func (tool *RedisTool) SetHash(key string, filed string, value string) error {
+
+func (tool *redisTool) SetHash(key string, filed string, value string) error {
 	_, e := tool.doCmd(HashSET, key, filed, value)
 	return e
 }
 
-func (tool *RedisTool) GetHash(key, field string) string {
+func (tool *redisTool) GetHash(key, field string) string {
 	rp, e := tool.doCmd(HashGET, key, field)
 	if e != nil || rp == nil {
 		ptlog.Error(e)
@@ -188,7 +198,8 @@ func (tool *RedisTool) GetHash(key, field string) string {
 	}
 	return string(rp.([]uint8))
 }
-func (tool *RedisTool) GetHashAll(key string) map[string]string {
+
+func (tool *redisTool) GetHashAll(key string) map[string]string {
 	res := make(map[string]string)
 	rp, e := tool.doCmd(HashGETALL, key)
 	if e != nil {
@@ -200,27 +211,30 @@ func (tool *RedisTool) GetHashAll(key string) map[string]string {
 	}
 	return res
 }
-func (tool *RedisTool) DelHashField(key string, field ...string) error {
+
+func (tool *redisTool) DelHashField(key string, field ...string) error {
 	var args = make([]interface{}, 0, len(field)+1)
 	args = append(args, key)
-	for _,v:=range field{
-		args=append(args, v)
+	for _, v := range field {
+		args = append(args, v)
 	}
 	_, e := tool.doCmd(HashDEL, args...)
 	return e
 }
-func (tool *RedisTool) ListPush(key string, value ...string) error{
+
+func (tool *redisTool) ListPush(key string, value ...string) error {
 	var args = make([]interface{}, 0, len(value)+1)
 	args = append(args, key)
-	for _,v:=range value{
-		args=append(args, v)
+	for _, v := range value {
+		args = append(args, v)
 	}
-	_,e:=tool.doCmd(ListPUSH,args...)
+	_, e := tool.doCmd(ListPUSH, args...)
 	return e
 }
-func (tool *RedisTool) ListPop(key string) string {
-	rp,e:=tool.doCmd(ListPOP,key)
-	if e!=nil{
+
+func (tool *redisTool) ListPop(key string) string {
+	rp, e := tool.doCmd(ListPOP, key)
+	if e != nil {
 		ptlog.Error(e)
 		return ""
 	}
@@ -230,4 +244,28 @@ func (tool *RedisTool) ListPop(key string) string {
 	default:
 		return string(rp.([]uint8))
 	}
+}
+
+//SetAdd 必须要添加一个成员
+func (tool *redisTool) SetAdd(key string,member1 string,members ...string) error{
+	var args = make([]interface{}, 0, len(members)+2)
+	args = append(args, key,member1)
+	for _, v := range members {
+		args = append(args, v)
+	}
+	_,e:=tool.doCmd(SetADD,args...)
+	return e
+}
+
+func (tool *redisTool)SetMembers(key string) []string {
+	var members []string
+	rp,e:=tool.doCmd(SetMEMBERS,key)
+	if e!=nil{
+		ptlog.Error(e)
+		return members
+	}
+	for _,v:=range rp.([]interface{}){
+		members=append(members, string(v.([]uint8)))
+	}
+	return members
 }
