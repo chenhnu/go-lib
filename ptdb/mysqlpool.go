@@ -3,10 +3,14 @@ package ptdb
 import (
 	"database/sql"
 	"errors"
-	_ "github.com/go-sql-driver/mysql"
+	"reflect"
 	"strconv"
-	"strings"
 	"time"
+
+	_ "github.com/go-sql-driver/mysql"
+
+	//pt go lib
+	"github.com/chenhnu/go-lib/ptlog"
 )
 
 type ConnInfo struct {
@@ -18,15 +22,8 @@ type ConnInfo struct {
 }
 
 func NewConnInfo(host string, port int, dbName string, user string, pwd string, timeoutMs int) (*ConnInfo, error) {
-	res := strings.Split(host, ".")
-	if len(res) != 4 {
-		return nil, errors.New("host error")
-	}
-	for _, s := range res {
-		num, e := strconv.Atoi(s)
-		if e != nil || num < 0 || num > 255 {
-			return nil, errors.New("host error")
-		}
+	if !isHost(host){
+		return nil,errors.New("host illegal")
 	}
 	return &ConnInfo{
 		Host:     host,
@@ -65,6 +62,52 @@ func NewMysqlPool(info *ConnInfo, maxSize int, activeSize int, timeoutms int) (*
 		db:                 db,
 	}, nil
 }
+//todo
+func (pool *MysqlPool) QueryOrm(query string, orm interface{}) ([]interface{}, error) {
+	rows, e := pool.db.Query(query)
+	if e != nil {
+		return nil, e
+	}
+	colFields, e := rows.Columns()
+	colTypes, e := rows.ColumnTypes()
+	scanArgs := make([]interface{}, len(colFields))
+	val := make([]interface{}, len(colFields))
+	for i := range val {
+		scanArgs[i] = &val[i]
+	}
+	var result []interface{}
+	for rows.Next() {
+		e = rows.Scan(scanArgs...)
+		if e != nil {
+			return nil, e
+		}
+		record := make(map[string]interface{})
+		for i, col := range val {
+			switch colTypes[i].ScanType().Name() {
+			case "int32":
+				temp, _ := strconv.Atoi(string(col.([]uint8)))
+				record[colFields[i]] = temp
+			case "RawBytes":
+				record[colFields[i]] = string(col.([]uint8))
+			default:
+				record[colFields[i]] = col
+			}
+		}
+		result = append(result, record)
+	}
+
+	ormType := reflect.TypeOf(orm)
+	num := ormType.NumField()
+	ormValue := reflect.New(ormType).Elem()
+	for i := 0; i < num; i++ {
+		switch ormValue.Field(i).Type().Kind() {
+		case reflect.String:
+			ormValue.Field(i).SetString("test")
+		}
+		//ormType.Field(i).Name
+	}
+	return nil, nil
+}
 
 //sql查询函数
 func (pool *MysqlPool) Query(query string) ([]map[string]interface{}, error) {
@@ -93,8 +136,15 @@ func (pool *MysqlPool) Query(query string) ([]map[string]interface{}, error) {
 				record[colFields[i]] = temp
 			case "RawBytes":
 				record[colFields[i]] = string(col.([]uint8))
+			case "NullTime":
+				t, e := time.Parse("0000-00-00 00:00:00", string(col.([]uint8)))
+				if e!=nil{
+					ptlog.Error(e)
+				}
+				record[colFields[i]] = t
 			default:
-				record[colFields[i]] = col
+				ptlog.Debug(colTypes[i].ScanType().Name())
+				record[colFields[i]] = string(col.([]uint8))
 			}
 		}
 		result = append(result, record)
