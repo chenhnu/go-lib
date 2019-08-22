@@ -1,8 +1,10 @@
 package ptcollection
 
 import (
-	"GoStudy/ptlog"
 	"errors"
+
+	//pt go lib
+	"github.com/chenhnu/go-lib/ptlog"
 )
 
 type Deque struct {
