@@ -1,7 +1,7 @@
 package ptcollection
 
 type bst struct {
-	root *node
+	root *treeNode
 }
 
 func NewBST(args ...interface{}) *bst {
@@ -9,7 +9,7 @@ func NewBST(args ...interface{}) *bst {
 		return &bst{}
 	}
 	res := bst{}
-	res.root = &node{
+	res.root = &treeNode{
 		val: args[0],
 	}
 	args = args[1:]
@@ -23,7 +23,7 @@ func NewBST(args ...interface{}) *bst {
 func (b *bst)addNode(arg interface{})  {
 	p:=b.root
 	for{
-		tmp:=node{val:arg}
+		tmp:=treeNode{val:arg}
 		if compare(p.val,arg){
 			if p.lChild==nil{
 				p.lChild=&tmp
