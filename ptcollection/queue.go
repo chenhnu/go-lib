@@ -37,10 +37,7 @@ func (q *queue) Pop() interface{} {
 	return val
 }
 func (q *queue) IsEmpty() bool {
-	if q.size == 0 {
-		return true
-	}
-	return false
+	return q.size == 0
 }
 
 type arrayQueue struct {
@@ -63,8 +60,5 @@ func (aq *arrayQueue) Pop() interface{} {
 	return val
 }
 func (aq *arrayQueue) IsEmpty() bool {
-	if len(aq.content)==0{
-		return true
-	}
-	return false
+	return len(aq.content)==0
 }
